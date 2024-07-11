@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from supabase import create_client, Client
-from users import router as users_router
+from app.routes.users import router as users_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
