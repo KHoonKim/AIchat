@@ -6,19 +6,14 @@ from supabase import create_client, Client
 from app.routes.users import router as users_router
 from fastapi.middleware.cors import CORSMiddleware
 
-
-
-
-
-
-app = FastAPI()
+app = FastAPI(debug=True)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 실제 운영 환경에서는 구체적인 도메인을 지정하세요
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,4 +51,3 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
 
-app = FastAPI(debug=True)
