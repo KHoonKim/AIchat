@@ -55,6 +55,7 @@ def register_user(email: str, password: str, nickname: str):
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
+
 def login_user(email: str, password: str):
     try:
         logger.info(f"Attempting login for email: {email}")
@@ -68,11 +69,16 @@ def login_user(email: str, password: str):
                 "user_id": auth_response.user.id
             }
         else:
-            logger.info("Login failed: User or session not found in auth response")
+            logger.error("Login failed: User or session not found in auth response")
             raise HTTPException(status_code=401, detail="Invalid credentials")
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
-        raise HTTPException(status_code=401, detail="Login failed")
+        if "Invalid login credentials" in str(e):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        elif "Email not confirmed" in str(e):
+            raise HTTPException(status_code=401, detail="Email not confirmed. Please check your email for verification link.")
+        else:
+            raise HTTPException(status_code=401, detail="Login failed. Please try again.")
 
 def social_login(provider: str, request: Request):
     try:
