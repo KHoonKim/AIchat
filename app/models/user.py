@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Literal
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -12,6 +12,10 @@ class UserUpdate(BaseModel):
     nickname: Optional[str] = Field(None, min_length=2, max_length=50)
     profile_image_url: Optional[str] = None
 
+class SocialLoginData(BaseModel):
+    provider: Literal["google", "kakao"]  # 지원하는 제공자 목록
+
+
 class UserInDB(UserBase):
     id: str
     hashed_password: str
@@ -20,12 +24,14 @@ class UserInDB(UserBase):
 
 class UserProfile(UserBase):
     id: str
+    email: EmailStr
+    nickname: str
     profile_image_url: Optional[str]
     login_type: str
 
 # Config 클래스를 사용하여 ORM 모드 활성화
-    class Config:
-        orm_mode = True
+class Config:
+    from_attributes = True
 
 class Token(BaseModel):
     access_token: str
