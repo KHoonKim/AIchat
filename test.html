@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Service Test</title>
+</head>
+<body>
+    <h1>Auth Service Test Page</h1>
+
+    <!-- Registration Form -->
+    <h2>Register</h2>
+    <form id="register-form">
+        <input type="text" id="register-email" placeholder="Email" required>
+        <input type="password" id="register-password" placeholder="Password" required>
+        <input type="text" id="register-nickname" placeholder="Nickname" required>
+        <button type="submit">Register</button>
+    </form>
+
+    <!-- Login Form -->
+    <h2>Login</h2>
+    <form id="login-form">
+        <input type="text" id="login-email" placeholder="Email" required>
+        <input type="password" id="login-password" placeholder="Password" required>
+        <button type="submit">Login</button>
+    </form>
+
+    <!-- Social Login -->
+    <h2>Social Login</h2>
+    <button id="google-login">Login with Google</button>
+    <button id="github-login">Login with GitHub</button>
+    <button id="facebook-login">Login with Facebook</button>
+
+    <!-- Logout Button -->
+    <h2>Logout</h2>
+    <button id="logout-button">Logout</button>
+
+    <!-- Profile Form -->
+    <h2>Profile</h2>
+    <form id="profile-form">
+        <input type="text" id="profile-username" placeholder="Username" required>
+        <input type="text" id="profile-email" placeholder="Email">
+        <button type="submit">Update Profile</button>
+    </form>
+    <button id="get-profile-button">Get Profile</button>
+
+    <!-- Output -->
+    <h2>Output</h2>
+    <pre id="output"></pre>
+
+    <script>
+        const apiUrl = 'http://localhost:8000'; // Update with your API base URL
+        let token = localStorage.getItem('token') || '';
+
+        document.getElementById('register-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const nickname = document.getElementById('register-nickname').value;
+            const response = await fetch(`${apiUrl}/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password, nickname })
+            });
+            const data = await response.json();
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const response = await fetch(`${apiUrl}/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                token = data.access_token;
+                localStorage.setItem('token', token);
+            }
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        });
+
+        document.getElementById('logout-button').addEventListener('click', async () => {
+            const response = await fetch(`${apiUrl}/logout`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await response.json();
+            token = '';
+            localStorage.removeItem('token');
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        });
+
+        document.getElementById('profile-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const username = document.getElementById('profile-username').value;
+            const email = document.getElementById('profile-email').value;
+            const response = await fetch(`${apiUrl}/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ username, email })
+            });
+            const data = await response.json();
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        });
+
+        document.getElementById('get-profile-button').addEventListener('click', async () => {
+            console.log("Sending GET request to /profile", `Bearer ${token}`);
+            const response = await fetch(`${apiUrl}/profile`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await response.json();
+            document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+        });
+
+        document.getElementById('google-login').addEventListener('click', async () => {
+            localStorage.setItem('original_url', window.location.href);
+            const response = await fetch(`${apiUrl}/social-login/google`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+            }
+        });
+
+        document.getElementById('github-login').addEventListener('click', async () => {
+            localStorage.setItem('original_url', window.location.href);
+            const response = await fetch(`${apiUrl}/social-login/github`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+            }
+        });
+
+        document.getElementById('facebook-login').addEventListener('click', async () => {
+            localStorage.setItem('original_url', window.location.href);
+            const response = await fetch(`${apiUrl}/social-login/facebook`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                document.getElementById('output').innerText = JSON.stringify(data, null, 2);
+            }
+        });
+    </script>
+</body>
+</html>

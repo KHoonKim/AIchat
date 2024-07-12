@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
 from typing import Optional, List
-from app.models.user import UserCreate, UserUpdate, UserProfile, SocialLoginData
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from app.models.user import UserCreate, UserUpdate, UserProfile, SocialLoginData, UserBase
 from app.services.auth_service import (
     get_current_user, process_token, register_user, login_user, social_login, auth_callback,
     get_user_profile, update_user_profile, logout_user, get_linked_accounts
@@ -15,18 +17,26 @@ async def register(user: UserCreate):
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+class UserBase(BaseModel):
+    email: str
+    password: str
 
 @router.post("/login")
-async def login(email: str, password: str):
+async def login(user: UserBase):
     try:
-        result = login_user(email, password)
+        result = login_user(user.email, user.password)
         return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-@router.post("/social-login")
-async def social_login_route(login_data: SocialLoginData, request: Request):
-    return social_login(login_data.provider, request)
+@router.post("/social-login/{provider}")
+async def social_login_route(provider: str, request: Request):
+    try:
+        response = social_login(provider, request)
+        return JSONResponse(content=response)
+    except HTTPException as e:
+        return JSONResponse(content={"detail": e.detail}, status_code=e.status_code)
 
 @router.get("/auth/callback")
 async def auth_callback_route(request: Request):
@@ -34,7 +44,11 @@ async def auth_callback_route(request: Request):
 
 @router.post("/process_token")
 async def process_token_route(token_data: dict):
-    return await process_token(token_data)
+    try:
+        response = await process_token(token_data)
+        return JSONResponse(content=response)
+    except HTTPException as e:
+        return JSONResponse(content={"detail": e.detail}, status_code=e.status_code)
 
 @router.get("/profile", response_model=UserProfile)
 async def get_profile(user=Depends(get_current_user)):

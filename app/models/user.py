@@ -24,8 +24,8 @@ class UserInDB(UserBase):
 
 class UserProfile(UserBase):
     id: str
-    email: EmailStr
-    nickname: str
+    # email: EmailStr
+    # nickname: str
     profile_image_url: Optional[str]
     login_type: str
 

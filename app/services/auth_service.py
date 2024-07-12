@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 from supabase import create_client, Client
 
 
@@ -21,12 +22,16 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 security = HTTPBearer()
 
+class User(BaseModel):
+    id: str
+    email: str
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
         response = supabase.auth.get_user(token)
         if response and response.user:
-            return response.user
+            return User(id=response.user.id, email=response.user.email)
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid authentication credentials: {str(e)}")
@@ -59,6 +64,7 @@ def register_user(email: str, password: str, nickname: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+    
 def login_user(email: str, password: str):
     try:
         logger.info(f"Attempting login for email: {email}")
@@ -120,8 +126,6 @@ async def auth_callback(request: Request):
                     var hash = window.location.hash.substring(1);
                     var params = new URLSearchParams(hash);
                     var access_token = params.get('access_token');
-                    
-                    console.log('Hash:', window.location.hash);
 
                     if (!access_token) {
                         document.body.innerHTML = '<h1>Error: No access token found</h1>';
@@ -146,6 +150,9 @@ async def auth_callback(request: Request):
                     .then(data => {
                         if (data.message && data.user_id) {
                             document.body.innerHTML = `<h1>${data.message}</h1><p>User ID: ${data.user_id}</p>`;
+                            setTimeout(() => {
+                                window.location.href = '/';
+                            }, 2000);  // Redirect back to the original page after 3 seconds
                         } else {
                             throw new Error('Invalid response data');
                         }
@@ -216,14 +223,18 @@ async def process_token(token_data: dict):
         logger.exception(f"Detailed error in process_token: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Error processing authentication: {str(e)}")
 
-async def get_user_profile(user):
+async def get_user_profile(user: User = Depends(get_current_user)):
     try:
+        logger.debug(f"Fetching profile for user ID: {user.id}")
         user_data = supabase.table("users").select("*").eq("id", user.id).single().execute()
-        if user_data and user_data.get("data"):
-            return user_data["data"]
+        if user_data.data:
+            logger.debug(f"User data retrieved: {user_data.data}")
+            return user_data.data
         else:
+            logger.error("User profile not found")
             raise HTTPException(status_code=404, detail="User profile not found")
     except Exception as e:
+        logger.error(f"Error fetching user profile: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 async def update_user_profile(user_update, user):
