@@ -1,12 +1,15 @@
 import os
 import logging
 from typing import Optional
-from fastapi import Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import create_client, Client
 
 
-logging.basicConfig(level=logging.INFO)
+router = APIRouter()
+
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 supabase_url = os.getenv("SUPABASE_URL")
@@ -82,7 +85,7 @@ def login_user(email: str, password: str):
 
 def social_login(provider: str, request: Request):
     try:
-        callback_url = str(request.base_url) + "auth/callback"
+        callback_url = "http://localhost:8000/auth/callback"
         logger.info(f"Callback URL: {callback_url}")
         auth_response = supabase.auth.sign_in_with_oauth({
             "provider": provider,
@@ -100,110 +103,117 @@ def social_login(provider: str, request: Request):
         logger.error(f"Social Login Error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Social login error: {str(e)}")
 
-async def auth_callback(code: Optional[str] = None, error: Optional[str] = None, request: Request = None):
-    logger.info(f"Auth callback called. Code: {code}, Error: {error}")
-    
-    if error:
-        logger.error(f"OAuth error: {error}")
-        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
-    if not code:
-        logger.error("No code provided")
-        raise HTTPException(status_code=400, detail="No code provided")
-    if code is None:
-        if 'test' in request.query_params:
-            # 테스트 모드
-            code = 'test_code'
-            logger.info("Test mode activated, using test_code")
-        else:
-            logger.error("No code provided")
-            raise HTTPException(status_code=400, detail="No code provided")
-    logger.info(f"Received code: {code}")
-
+async def auth_callback(request: Request):
     try:
-        supabase: Client = request.app.state.supabase
-        
-        # 테스트 코드 ('test' 코드에 대한 처리)
-        if code == 'test':
-            logger.info("Test code detected. Returning mock response.")
-            return {
-                "message": "Test auth callback successful",
-                "access_token": "test_token",
-                "user": {
-                    "id": "test_user_id",
-                    "email": "test@example.com",
-                    "nickname": "TestUser"
+        logger.debug("Auth callback hit")
+        code = request.query_params.get('code')
+        error = request.query_params.get('error')
+        logger.debug(f"Received code: {code}, error: {error}")
+
+
+        # URL 프래그먼트를 처리하기 위한 HTML 응답
+        html_content = """
+        <html>
+        <body>
+            <script>
+                function sendTokenToServer() {
+                    var hash = window.location.hash.substring(1);
+                    var params = new URLSearchParams(hash);
+                    var access_token = params.get('access_token');
+                    
+                    console.log('Hash:', window.location.hash);
+
+                    if (!access_token) {
+                        document.body.innerHTML = '<h1>Error: No access token found</h1>';
+                        return;
+                    }
+
+                    fetch('/process_token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({access_token: access_token}),
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => {
+                                throw new Error(err.detail || 'Unknown error occurred');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.message && data.user_id) {
+                            document.body.innerHTML = `<h1>${data.message}</h1><p>User ID: ${data.user_id}</p>`;
+                        } else {
+                            throw new Error('Invalid response data');
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Error:', error);
+                        document.body.innerHTML = '<h1>Error occurred during authentication</h1><p>' + error.message + '</p>';
+                    });
                 }
-            }
+                window.onload = sendTokenToServer;
+            </script>
+            <h1>Processing authentication...</h1>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+    except Exception as e:
+        logger.exception(f"Error in auth_callback: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error processing authentication: {str(e)}")
+
+
+async def process_token(token_data: dict):
+    try:
+        access_token = token_data.get('access_token')
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Access token not provided")
+
+        # 액세스 토큰을 사용하여 사용자 정보 가져오기
+        user = supabase.auth.get_user(access_token)
         
-        auth_response = supabase.auth.exchange_code_for_session(code)
-        logger.info(f"Auth response type: {type(auth_response)}")
-        logger.info(f"Auth response content: {auth_response}")
+        if not user or not user.user:
+            raise HTTPException(status_code=400, detail="User information not found")
         
-        if isinstance(auth_response, str):
-            try:
-                auth_response = json.loads(auth_response)
-            except json.JSONDecodeError:
-                logger.error("Failed to parse auth_response as JSON")
-                raise HTTPException(status_code=500, detail="Failed to parse authentication response")
+        user_id = user.user.id
+        user_email = user.user.email
         
-        if isinstance(auth_response, dict):
-            session = auth_response.get('session', {})
-            user = auth_response.get('user', {})
-        elif hasattr(auth_response, 'session') and hasattr(auth_response, 'user'):
-            session = auth_response.session
-            user = auth_response.user
+        # 사용자 정보 조회
+        user_data = supabase.table("users").select("*").eq("id", user_id).execute()
+        logger.debug(f"User data: {user_data}")
+        
+        if user_data.data:
+            # 기존 사용자
+            message = f"Successfully logged in."
+            logger.debug(f"Existing user logged in: {user_id}")
         else:
-            logger.error(f"Unexpected auth_response structure: {auth_response}")
-            raise HTTPException(status_code=500, detail="Unexpected response structure from authentication service")
-
-        if not user or not session:
-            logger.error("User or session information is missing")
-            raise HTTPException(status_code=400, detail="User or session information is missing")
-
-        # 사용자 정보 조회 또는 생성
-        user_id = user.get('id') if isinstance(user, dict) else getattr(user, 'id', None)
-        user_email = user.get('email') if isinstance(user, dict) else getattr(user, 'email', None)
-        
-        if not user_id or not user_email:
-            logger.error("User ID or email is missing")
-            raise HTTPException(status_code=400, detail="User ID or email is missing")
-
-        user_data = supabase.table("users").select("*").eq("id", user_id).single().execute()
-        
-        if not user_data.data:
-            # 새 사용자 생성
+            # 신규 사용자 생성
             new_user = {
                 "id": user_id,
                 "email": user_email,
-                "nickname": f"User_{user_id[:8]}",  # 기본 닉네임 설정
+                "nickname": f"User_{user_id[:8]}",
                 "login_type": "social"
             }
             insert_result = supabase.table("users").insert(new_user).execute()
+            logger.debug(f"Insert result: {insert_result}")
             if not insert_result.data:
-                logger.error("Failed to create new user")
                 raise HTTPException(status_code=500, detail="Failed to create new user")
-            logger.info(f"New user created: {user_email}")
-            user_nickname = new_user["nickname"]
-        else:
-            logger.info(f"Existing user logged in: {user_email}")
-            user_nickname = user_data.data.get("nickname", f"User_{user_id[:8]}")
-
-        access_token = session.get('access_token') if isinstance(session, dict) else getattr(session, 'access_token', None)
-        if not access_token:
-            logger.error("Access token is missing")
-            raise HTTPException(status_code=400, detail="Access token is missing")
-
-        return {
-            "message": "Social login successful",
-            "access_token": access_token,
-            "user": {
-                "id": user_id,
-                "email": user_email,
-                "nickname": user_nickname
-            }
+            message = f"New user successfully created."
+            logger.debug(f"New user created: {user_id}")
+        
+        response_data = {
+            "message": message,
+            "user_id": user_id
         }
+        logger.debug(f"Returning response: {response_data}")
+        return response_data
+    
     except Exception as e:
-        logger.exception(f"Error in auth callback: {str(e)}")
+        logger.exception(f"Detailed error in process_token: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Error processing authentication: {str(e)}")
 
 async def get_user_profile(user):

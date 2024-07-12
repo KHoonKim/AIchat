@@ -1,4 +1,7 @@
 {
     "github.copilot.preferredAccount": "KHoonKim",
-    "notebook.defaultFormatter": "GitHub.copilot"
+    "notebook.defaultFormatter": "GitHub.copilot",
+    "python.analysis.extraPaths": [
+        "./app/services"
+    ]
 }
