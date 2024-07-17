@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI, Request
 from supabase import create_client, Client
 from app.routes.users import router as users_router
+from app.routes.characters import router as characters_router
 from app.services.auth_service import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -43,6 +44,7 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(users_router)
+app.include_router(characters_router)
 app.include_router(auth_router, prefix="/auth")
 
 
