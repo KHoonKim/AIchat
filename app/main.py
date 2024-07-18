@@ -45,6 +45,7 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(users_router)
 app.include_router(characters_router)
+app.include_router(conversations_router)
 app.include_router(auth_router, prefix="/auth")
 
 
