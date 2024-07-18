@@ -25,6 +25,8 @@ security = HTTPBearer()
 class User(BaseModel):
     id: str
     email: str
+    is_admin: bool = False  # is_admin 필드 추가
+
 
 def get_supabase_token(email: str, password: str) -> str:
     try:
@@ -42,10 +44,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     try:
         response = supabase.auth.get_user(token)
         if response and response.user:
-            return User(id=response.user.id, email=response.user.email)
+            # is_admin 정보를 가져오는 로직 추가
+            user_data = supabase.table("users").select("is_admin").eq("id", response.user.id).single().execute()
+            is_admin = user_data.data.get('is_admin', False) if user_data.data else False
+            return User(id=response.user.id, email=response.user.email, is_admin=is_admin)  # is_admin 추가
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid authentication credentials: {str(e)}")
+
 
 def register_user(email: str, password: str, nickname: str):
     try:
@@ -59,7 +65,8 @@ def register_user(email: str, password: str, nickname: str):
                 "id": auth_response.user.id,
                 "email": email,
                 "nickname": nickname,
-                "login_type": "email"
+                "login_type": "email",
+                "is_admin": False  # 기본적으로 새 사용자는 관리자가 아님
             }).execute()
 
             logger.info(f"User data insert response: {user_data}")
@@ -214,7 +221,8 @@ async def process_token(token_data: dict):
                 "id": user_id,
                 "email": user_email,
                 "nickname": f"User_{user_id[:8]}",
-                "login_type": "social"
+                "login_type": "social",
+                "is_admin": False  # 새 사용자는 기본적으로 관리자가 아님
             }
             insert_result = supabase.table("users").insert(new_user).execute()
             logger.debug(f"Insert result: {insert_result}")
@@ -240,7 +248,8 @@ async def get_user_profile(user: User = Depends(get_current_user)):
         user_data = supabase.table("users").select("*").eq("id", user.id).single().execute()
         if user_data.data:
             logger.debug(f"User data retrieved: {user_data.data}")
-            return user_data.data
+            # is_admin 정보를 포함하여 반환
+            return {**user_data.data, "is_admin": user.is_admin}
         else:
             logger.error("User profile not found")
             raise HTTPException(status_code=404, detail="User profile not found")

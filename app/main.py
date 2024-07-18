@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from supabase import create_client, Client
 from app.routes.users import router as users_router
 from app.routes.characters import router as characters_router
+from app.routes.conversations import router as conversations_router
 from app.services.auth_service import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 

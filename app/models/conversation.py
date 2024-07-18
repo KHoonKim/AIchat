@@ -32,14 +32,14 @@ class ConversationProfile(ConversationInDB):
 class MessageBase(BaseModel):
     conversation_id: uuid.UUID
     sender_type: Literal['user', 'character']
-    content: Dict
+    content: List[Dict]
     metadata: Optional[Dict] = Field(default_factory=dict)
 
 class MessageCreate(MessageBase):
     pass
 
 class MessageUpdate(BaseModel):
-    content: Optional[Dict] = None
+    content: Optional[List[Dict]] = None
     metadata: Optional[Dict] = None
 
 class MessageInDB(MessageBase):
