@@ -26,6 +26,17 @@ class User(BaseModel):
     id: str
     email: str
 
+def get_supabase_token(email: str, password: str) -> str:
+    try:
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if response and response.session:
+            return response.session.access_token
+        else:
+            raise HTTPException(status_code=401, detail="Unable to authenticate with Supabase")
+    except Exception as e:
+        print(f"Supabase Auth Error: {str(e)}")
+        raise HTTPException(status_code=401, detail="Supabase authentication error")
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
