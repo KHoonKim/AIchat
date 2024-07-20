@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 
 from fastapi import FastAPI, Request
 from supabase import create_client, Client
@@ -8,6 +9,8 @@ from app.routes.characters import router as characters_router
 from app.routes.conversations import router as conversations_router
 from app.services.auth_service import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 app = FastAPI(debug=True)
 
