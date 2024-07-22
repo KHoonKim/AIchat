@@ -3,6 +3,7 @@ import logging
 import os
 from typing import List, Dict
 from fastapi import APIRouter, HTTPException
+import tiktoken
 from app.models.conversation import ConversationCreate, ConversationUpdate, ConversationProfile, MessageCreate, MessageProfile
 from app.models.user import UserProfile as User
 from supabase import create_client, Client
@@ -16,7 +17,9 @@ from langchain.docstore.document import Document
 from app.services.relationship_service import RelationshipService
 from langchain import PromptTemplate, LLMChain
 from langchain.chat_models import ChatOpenAI
-from app.models.relationship import RelationshipCreate, RelationshipUpdate, RelationshipInDB
+from app.config import redis_client
+
+from app.models.relationship import UserCharacterInteractionInDB, UserCharacterInteractionUpdate, UserCharacterInteractionCreate
 
 
 
@@ -39,6 +42,7 @@ class ConversationContextManager: # 대화 컨텍스트 관리자
         self.memory = ConversationBufferWindowMemory(k=window_size) # 대화 기록 메모리
         self.relationship_info = {} # 관계 정보
         self.current_scenario = None # 현재 시나리오
+        
 
     def add_message(self, role: str, content: str): # role: 메시지 발신자 역할, content: 메시지 내용
         if role == 'human':
@@ -77,7 +81,7 @@ class ConversationService:
         self.llm = OpenAI(temperature=0)  # OpenAI 모델 초기화
         self.summarize_chain = load_summarize_chain(self.llm, chain_type="map_reduce")
         self.ai_service = AIService()
-
+        
         self.relationship_service = RelationshipService()
         self.llm = ChatOpenAI(temperature=0.7)
         self.prompt_template = PromptTemplate(
@@ -113,6 +117,8 @@ class ConversationService:
             """
         )
         self.affinity_chain = LLMChain(llm=self.llm, prompt=self.affinity_prompt)
+
+        self.redis_client = redis_client
 
 
 
@@ -181,6 +187,7 @@ class ConversationService:
             conversation_data['character_id'] = str(conversation.character_id)
             
             response = supabase.table("conversations").insert(conversation_data).execute()
+            
             if response.data:
                 self.context_manager.clear_context()
                 return ConversationProfile(**response.data[0])
@@ -189,13 +196,24 @@ class ConversationService:
         except Exception as e:
             logger.error(f"Error creating conversation: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
+        
 
     async def get_conversation(self, conversation_id: str, current_user: User) -> ConversationProfile:
+        # Redis에서 먼저 확인
+        cached_conversation = self.redis_client.get(f"conversation:{conversation_id}")
+        if cached_conversation:
+            conversation = json.loads(cached_conversation)
+            if conversation['user_id'] == current_user.id:
+                return ConversationProfile(**conversation)
+        
+        # Redis에 없으면 데이터베이스에서 조회
         try:
             response = supabase.table("conversations").select("*").eq("id", conversation_id).execute()
             if response.data:
                 conversation = response.data[0]
                 if conversation['user_id'] == current_user.id:
+                    # Redis에 캐시 저장
+                    self.redis_client.setex(f"conversation:{conversation_id}", 3600, json.dumps(conversation))  # 1시간 동안 캐시
                     return ConversationProfile(**conversation)
                 else:
                     raise HTTPException(status_code=403, detail="You don't have permission to access this conversation")
@@ -273,6 +291,10 @@ class ConversationService:
             if response.data:
                 created_message = MessageProfile(**response.data[0])
                 
+                # Redis에 최근 메시지 캐시
+                self.redis_client.lpush(f"recent_messages:{conversation_id}", json.dumps(created_message.dict()))
+                self.redis_client.ltrim(f"recent_messages:{conversation_id}", 0, 9)  # 최근 10개 메시지만 유지
+
                 # Pinecone에 벡터 저장
                 await self.ai_service.store_vector_async(
                     id=str(created_message.id),
@@ -382,50 +404,115 @@ class ConversationService:
         else:
             raise HTTPException(status_code=404, detail="Scenario not found")
 
-    async def generate_ai_response(self, conversation_id: str, user_id: str, character_id: str) -> str:
-        recent_messages = await self.get_recent_messages(conversation_id, 10)
-        summary = await self.get_conversation_summary(conversation_id)
-        similar_messages = await self.get_similar_messages(conversation_id, recent_messages[-1].content, 3)
-        relationship = await self.relationship_service.get_relationship(user_id, character_id)
-        affinity_level = self.relationship_service.get_affinity_level(relationship.affinity)
+    async def get_conversation_summary(self, conversation_id: str) -> str:
+        # Redis에서 먼저 확인
+        cached_summary = self.redis_client.get(f"conversation_summary:{conversation_id}")
+        if cached_summary:
+            return cached_summary
         
-        prompt_template = PromptTemplate(
-            input_variables=["recent_messages", "summary", "similar_messages", "affinity_level", "relationship_type", "nickname"],
-            template="""
-            당신은 AI 캐릭터입니다. 다음 정보를 바탕으로 사용자와의 대화에 참여하세요:
-            
-            최근 메시지들:
-            {recent_messages}
-            
-            대화 요약:
-            {summary}
-            
-            유사한 과거 메시지들:
-            {similar_messages}
-            
-            사용자에 대한 호감도: {affinity_level}
-            사용자와의 관계: {relationship_type}
-            사용자의 별명: {nickname}
-            
-            위 정보를 참고하여 자연스럽고 개성 있는 답변을 생성하세요. 
-            호감도와 관계 유형에 맞는 적절한 어조와 친밀도를 사용하세요.
-            이전 대화 내용과 일관성을 유지하면서, 대화를 발전시키는 답변을 제공하세요.
-            """
-        )
+        # Redis에 없으면 데이터베이스에서 조회
+        try:
+            response = supabase.table("conversation_summaries").select("summary").eq("conversation_id", conversation_id).order("created_at", ascending=False).limit(1).execute()
+            if response.data:
+                summary = response.data[0]['summary']
+                # Redis에 캐시 저장
+                self.redis_client.setex(f"conversation_summary:{conversation_id}", 3600, summary)  # 1시간 동안 캐시
+                return summary
+            return "아직 요약이 없습니다."
+        except Exception as e:
+            logger.error(f"Error getting conversation summary: {str(e)}")
+            return "요약을 가져오는 데 실패했습니다."
 
-        llm = ChatOpenAI(temperature=0.7)
-        llm_chain = LLMChain(llm=llm, prompt=prompt_template)
+    async def get_recent_messages(self, conversation_id: str, limit: int) -> List[MessageProfile]:
+        # Redis에서 최근 메시지 조회
+        cached_messages = self.redis_client.lrange(f"recent_messages:{conversation_id}", 0, limit - 1)
+        if cached_messages and len(cached_messages) == limit:
+            return [MessageProfile(**json.loads(msg)) for msg in cached_messages]
         
-        ai_response = llm_chain.run(
-            recent_messages=self.format_messages(recent_messages),
-            summary=summary,
-            similar_messages=self.format_messages(similar_messages),
-            affinity_level=affinity_level,
-            relationship_type=relationship.relationship_type.value,
-            nickname=relationship.nickname or "사용자"
-        )
-        
-        return ai_response
+        # Redis에 없으면 데이터베이스에서 조회
+        try:
+            response = supabase.table("messages").select("*").eq("conversation_id", conversation_id).order("created_at", ascending=False).limit(limit).execute()
+            messages = [MessageProfile(**msg) for msg in response.data][::-1]
+            
+            # Redis에 캐시 저장
+            for msg in messages:
+                self.redis_client.lpush(f"recent_messages:{conversation_id}", json.dumps(msg.model_dump()))
+            self.redis_client.ltrim(f"recent_messages:{conversation_id}", 0, limit - 1)
+            
+            return messages
+        except Exception as e:
+            logger.error(f"Error getting recent messages: {str(e)}")
+            return []
+
+
+    async def get_relationship(self, character_id: str, user_id: str) -> UserCharacterInteractionInDB:
+        try:
+            return await self.relationship_service.get_interaction(character_id, user_id)
+        except HTTPException:
+            # 관계가 없으면 새로 생성
+            new_relationship = UserCharacterInteractionCreate(character_id=character_id, user_id=user_id)
+            return await self.relationship_service.create_interaction(new_relationship)
+
+    async def generate_ai_response(self, conversation_id: str, user_id: str, character_id: str) -> str:
+        try:
+            recent_messages = await self.get_recent_messages(conversation_id, 10)
+            summary = await self.get_conversation_summary(conversation_id)
+            similar_messages = await self.get_similar_messages(conversation_id, recent_messages[-1].content, 3)
+            relationship = await self.relationship_service.get_interaction(user_id, character_id)
+            affinity_level = self.relationship_service.get_affinity_level(relationship.affinity)
+
+            # 컨텍스트 업데이트
+            self.context_manager.update_relationship_info(relationship.affinity, relationship.interaction_count)
+            self.context_manager.add_message("human", recent_messages[-1].content)
+
+            context = self.context_manager.get_formatted_context()
+
+            # 토큰 수 계산 및 제한
+            encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+            max_tokens = 4096  # GPT-3.5-turbo의 최대 토큰 수
+            prompt_tokens = len(encoding.encode(context))
+            available_tokens = max_tokens - prompt_tokens - 100  # 응답을 위한 여유 토큰
+            
+            prompt_template = PromptTemplate(
+                input_variables=["recent_messages", "summary", "similar_messages", "affinity_level", "relationship_type", "nickname"],
+                template="""
+                당신은 AI 캐릭터입니다. 다음 정보를 바탕으로 사용자와의 대화에 참여하세요:
+                
+                컨텍스트: {context}
+                최근 메시지들: {recent_messages}
+                대화 요약: {summary}
+                유사한 과거 메시지들: {similar_messages}
+                사용자에 대한 호감도: {affinity_level}
+                사용자와의 관계: {relationship_type}
+                사용자의 별명: {nickname}
+                
+                위 정보를 참고하여 자연스럽고 개성 있는 답변을 생성하세요. 
+                호감도와 관계 유형에 맞는 적절한 어조와 친밀도를 사용하세요.
+                이전 대화 내용과 일관성을 유지하면서, 대화를 발전시키는 답변을 제공하세요.
+                """
+            )
+
+            llm = ChatOpenAI(temperature=0.7, max_tokens=available_tokens)
+            llm_chain = LLMChain(llm=llm, prompt=prompt_template)
+            
+            ai_response = llm_chain.run(
+                context=context,
+                recent_messages=self.format_messages(recent_messages),
+                summary=summary,
+                similar_messages=self.format_messages(similar_messages),
+                affinity_level=affinity_level,
+                relationship_type=relationship.relationship_type.value,
+                nickname=relationship.nickname or "사용자"
+            )
+
+            # AI 응답을 컨텍스트에 추가
+            self.context_manager.add_message("ai", ai_response)
+            
+            return ai_response
+        except Exception as e:
+            logger.error(f"Error generating AI response: {str(e)}")
+            return "죄송합니다. 응답을 생성하는 데 문제가 발생했습니다. 다시 시도해 주세요."
+
 
     def format_messages(self, messages: List[MessageProfile]) -> str:
         return "\n".join([f"{msg.sender}: {msg.content}" for msg in messages])
@@ -441,22 +528,15 @@ class ConversationService:
         await self.relationship_service.update_relationship(
             user_id, 
             character_id, 
-            RelationshipUpdate(affinity=new_affinity, last_interaction=datetime.datetime.now(timezone.utc))
+            UserCharacterInteractionUpdate(affinity=new_affinity, last_interaction=datetime.datetime.now(timezone.utc))
         )
     
-    def calculate_affinity_change(self, message_content: str) -> float:
-        # 간단한 키워드 기반 호감도 변화 계산 (실제 구현 시 더 복잡한 로직 사용 가능)
-        positive_keywords = ["좋아", "감사", "행복", "사랑"]
-        negative_keywords = ["싫어", "짜증", "화나", "미워"]
-        
-        affinity_change = 0
-        for word in positive_keywords:
-            if word in message_content:
-                affinity_change += 0.5
-        for word in negative_keywords:
-            if word in message_content:
-                affinity_change -= 0.5
-        
-        return affinity_change
+    async def calculate_affinity_change(self, summary: str) -> float:
+        affinity_change_str = await self.affinity_chain.arun(summary=summary)
+        try:
+            affinity_change = float(affinity_change_str.strip())
+            return max(-5, min(5, affinity_change))  # 값을 -5에서 5 사이로 제한
+        except ValueError:
+            return 0  # 변환 실패 시 변화 없음으로 처리
 
 # 기존 함수들은 ConversationService 클래스의 메서드로 변환되었으므로 삭제

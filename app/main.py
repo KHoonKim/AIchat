@@ -2,17 +2,38 @@ import os
 import logging
 import sys
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from supabase import create_client, Client
 from app.routes.users import router as users_router
 from app.routes.characters import router as characters_router
 from app.routes.conversations import router as conversations_router
+# from app.routes.scenarios import router as scenarios_router
 from app.services.auth_service import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import redis_client
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 애플리케이션 시작 시 실행될 코드
+    try:
+        redis_client.ping()
+        print("Successfully connected to Redis")
+    except Exception as e:
+        print(f"Failed to connect to Redis: {e}")
+    
+    yield  # FastAPI 애플리케이션 실행
+    
+    # 애플리케이션 종료 시 실행될 코드
+    redis_client.close()
+    print("Redis connection closed")
 
-app = FastAPI(debug=True)
+
+
+app = FastAPI(debug=True, lifespan=lifespan)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -50,6 +71,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(users_router)
 app.include_router(characters_router)
 app.include_router(conversations_router)
+# app.include_router(scenarios_router)
 app.include_router(auth_router, prefix="/auth")
 
 

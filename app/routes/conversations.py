@@ -4,7 +4,7 @@ from app.models.conversation import ConversationCreate, ConversationUpdate, Conv
 from app.services.auth_service import get_current_user
 from app.services.conversation_service import ConversationService
 from app.models.user import UserProfile as User
-from app.models.relationship import RelationshipType, RelationshipUpdate
+from app.models.relationship import RelationshipType, UserCharacterInteractionUpdate
 
 router = APIRouter()
 conversation_service = ConversationService()
@@ -69,10 +69,10 @@ async def update_nickname_route(
     current_user: User = Depends(get_current_user)
 ):
     conversation = await conversation_service.get_conversation(conversation_id, current_user)
-    await conversation_service.relationship_service.update_relationship(
+    await conversation_service.relationship_service.update_interaction(
         str(conversation.character_id),
         str(current_user.id),
-        RelationshipUpdate(nickname=nickname)
+        UserCharacterInteractionUpdate(nickname=nickname)
     )
     return {"message": "Nickname updated successfully"}
 
@@ -83,7 +83,7 @@ async def update_relationship_type_route(
     current_user: User = Depends(get_current_user)
 ):
     conversation = await conversation_service.get_conversation(conversation_id, current_user)
-    await conversation_service.relationship_service.update_relationship_type(
+    await conversation_service.relationship_service.update_interaction(
         str(conversation.character_id),
         str(current_user.id),
         relationship_type
