@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
-from app.models.conversation import ConversationCreate, ConversationUpdate, ConversationProfile, MessageCreate, MessageProfile
+
+from fastapi import APIRouter, Depends, Query
+
+from app.models.conversation import (ConversationCreate, ConversationProfile,
+                                     ConversationUpdate, MessageCreate,
+                                     MessageProfile)
+from app.models.relationship import (RelationshipType,
+                                     UserCharacterInteractionUpdate)
+from app.models.user import UserProfile as User
 from app.services.auth_service import get_current_user
 from app.services.conversation_service import ConversationService
-from app.models.user import UserProfile as User
-from app.models.relationship import RelationshipType, UserCharacterInteractionUpdate
 
 router = APIRouter()
 conversation_service = ConversationService()

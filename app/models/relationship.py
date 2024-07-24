@@ -1,7 +1,9 @@
-from enum import Enum
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel
+
 
 class RelationshipType(Enum):
     ENEMY = "enemy"

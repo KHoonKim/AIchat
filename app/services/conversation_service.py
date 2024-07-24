@@ -1,29 +1,30 @@
-from datetime import datetime, timezone
+import json
 import logging
 import os
-from typing import List, Dict
-from fastapi import APIRouter, HTTPException
+from datetime import datetime, timezone
+from typing import Dict, List
+
 import tiktoken
-from app.models.conversation import ConversationCreate, ConversationUpdate, ConversationProfile, MessageCreate, MessageProfile
-from app.models.user import UserProfile as User
-from supabase import create_client, Client
-from app.services.ai_service import AIService
-import uuid
-from langchain.memory import ConversationBufferWindowMemory
-from langchain.schema import HumanMessage, AIMessage
-from langchain.llms import OpenAI
+from fastapi import APIRouter, HTTPException
+from langchain import LLMChain, PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
-from langchain.docstore.document import Document
-from app.services.relationship_service import RelationshipService
-from langchain import PromptTemplate, LLMChain
 from langchain.chat_models import ChatOpenAI
+from langchain.docstore.document import Document
+from langchain.llms import OpenAI
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.schema import AIMessage, HumanMessage
+from supabase import Client, create_client
+
 from app.config import redis_client
-
-from app.models.relationship import UserCharacterInteractionInDB, UserCharacterInteractionUpdate, UserCharacterInteractionCreate
-
-
-
-import json
+from app.models.conversation import (ConversationCreate, ConversationProfile,
+                                     ConversationUpdate, MessageCreate,
+                                     MessageProfile)
+from app.models.relationship import (UserCharacterInteractionCreate,
+                                     UserCharacterInteractionInDB,
+                                     UserCharacterInteractionUpdate)
+from app.models.user import UserProfile as User
+from app.services.ai_service import AIService
+from app.services.relationship_service import RelationshipService
 
 router = APIRouter()
 

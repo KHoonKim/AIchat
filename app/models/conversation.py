@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, List, Literal
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
 
 class ConversationBase(BaseModel):
     # user_id: uuid.UUID

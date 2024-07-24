@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
-from typing import Optional, List
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from app.models.user import UserCreate, UserUpdate, UserProfile, SocialLoginData, UserBase
-from app.services.auth_service import (
-    get_current_user, process_token, register_user, login_user, social_login, auth_callback,
-    get_user_profile, update_user_profile, logout_user, get_linked_accounts
-)
+
+from app.models.user import UserBase, UserCreate, UserProfile, UserUpdate
+from app.services.auth_service import (auth_callback, get_current_user,
+                                       get_linked_accounts, get_user_profile,
+                                       login_user, logout_user, process_token,
+                                       register_user, social_login,
+                                       update_user_profile)
 
 router = APIRouter()
 

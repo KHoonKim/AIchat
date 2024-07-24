@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
 
 class LocalizedContent(BaseModel):
     ko: Optional[str] = Field(None, description="Korean content")

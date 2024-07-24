@@ -3,10 +3,13 @@
 import logging
 import os
 from typing import List
+
 from fastapi import APIRouter, HTTPException
-from app.models.character import CharacterCreate, CharacterUpdate, CharacterProfile
+from supabase import Client, create_client
+
+from app.models.character import (CharacterCreate, CharacterProfile,
+                                  CharacterUpdate)
 from app.models.user import UserProfile as User
-from supabase import create_client, Client
 
 router = APIRouter()
 

@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from app.models.character import CharacterCreate, CharacterUpdate, CharacterProfile
-from app.services.auth_service import get_current_user
-from app.services.character_service import (
-    create_character, get_character, update_character, delete_character, list_characters
-)
+
+from fastapi import APIRouter, Depends
+
+from app.models.character import (CharacterCreate, CharacterProfile,
+                                  CharacterUpdate)
 from app.models.user import UserProfile as User
+from app.services.auth_service import get_current_user
+from app.services.character_service import (create_character, delete_character,
+                                            get_character, list_characters,
+                                            update_character)
+
 router = APIRouter()
 
 @router.post("/characters", response_model=CharacterProfile)

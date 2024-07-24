@@ -1,12 +1,11 @@
-import os
 import logging
-from typing import Optional
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from supabase import create_client, Client
-
+from supabase import Client, create_client
 
 router = APIRouter()
 

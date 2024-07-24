@@ -1,6 +1,7 @@
 # config.py
 
 import os
+
 from redis import Redis
 
 # Redis 설정

@@ -1,12 +1,15 @@
-from datetime import datetime, timezone
-import os
 import json
-from app.models.relationship import UserCharacterInteractionUpdate, RelationshipType, UserCharacterInteractionCreate, UserCharacterInteractionInDB
-from supabase import create_client, Client
+import os
+from datetime import datetime, timezone
+
 from fastapi import HTTPException
+from supabase import Client, create_client
+
 from app.config import redis_client
-
-
+from app.models.relationship import (RelationshipType,
+                                     UserCharacterInteractionCreate,
+                                     UserCharacterInteractionInDB,
+                                     UserCharacterInteractionUpdate)
 
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")

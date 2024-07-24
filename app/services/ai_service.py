@@ -1,14 +1,18 @@
-from typing import Any, Dict, List
-from sentence_transformers import SentenceTransformer
-import numpy as np
-from pinecone import Pinecone, ServerlessSpec
-import os
 import asyncio
+import os
+from typing import Any, Dict, List
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
+
+import openai
+from pinecone import Pinecone, ServerlessSpec
 
 
 class AIService:
     def __init__(self):
-        self.model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+        openai.api_key = os.environ.get('OPENAI_API_KEY')
 
         # Pinecone 초기화
         self.pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
@@ -20,7 +24,7 @@ class AIService:
         if index_name not in self.pc.list_indexes().names():
             self.pc.create_index(
                 name=index_name,
-                dimension=384,  # SentenceTransformer 모델의 출력 차원
+                dimension=1536,  # OpenAI의 text-embedding-ada-002 모델의 출력 차원
                 metric='cosine',
                 spec=ServerlessSpec(cloud=os.environ.get("PINECONE_CLOUD", "aws"), 
                                     region=os.environ.get("PINECONE_REGION", "us-west-2"))
@@ -30,34 +34,20 @@ class AIService:
         self.index = self.pc.Index(index_name)
 
     def vectorize_text(self, text: str) -> List[float]:
-        """
-        텍스트를 벡터로 변환하는 메서드
-        
-        :param text: 벡터화할 텍스트
-        :return: 벡터화된 텍스트 (리스트 형태)
-        """
-        embedding = self.model.encode(text)
-        return embedding.tolist()
-    
-    
+        """텍스트를 벡터로 변환하는 메서드"""
+        response = openai.Embedding.create(
+            input=text,
+            model="text-embedding-ada-002"
+        )
+        embedding = response['data'][0]['embedding']
+        return embedding
+
     def store_vector(self, id: str, vector: List[float], metadata: Dict[str, Any]):
-        """
-        벡터를 Pinecone에 저장하는 메서드
-        
-        :param id: 벡터의 고유 ID
-        :param vector: 저장할 벡터
-        :param metadata: 벡터와 함께 저장할 메타데이터
-        """
+        """벡터를 Pinecone에 저장하는 메서드"""
         self.index.upsert(vectors=[(id, vector, metadata)])
 
     async def store_vector_async(self, id: str, vector: List[float], metadata: Dict[str, Any]):
-        """
-        벡터를 Pinecone에 비동기적으로 저장하는 메서드
-        
-        :param id: 벡터의 고유 ID
-        :param vector: 저장할 벡터
-        :param metadata: 벡터와 함께 저장할 메타데이터
-        """
+        """벡터를 Pinecone에 비동기적으로 저장하는 메서드"""
         # 비동기 실행을 위해 run_in_executor 사용
         await asyncio.get_event_loop().run_in_executor(
             None, self.store_vector, id, vector, metadata
