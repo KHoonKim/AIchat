@@ -1,1 +1,1 @@
-web: sh .platform/hooks/postdeploy/01_start_application.sh
+web: /var/app/venv/bin/gunicorn --bind 0.0.0.0:8000 main:app -k uvicorn.workers.UvicornWorker

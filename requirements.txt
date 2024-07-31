@@ -1,5 +1,5 @@
 fastapi==0.111.1
-gunicorn
+gunicorn==22.0.0
 httptools==0.6.1
 langchain-community==0.2.10
 openai==1.37.1
