@@ -126,6 +126,7 @@ def social_login(provider: str, request: Request):
         logger.error(f"Social Login Error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Social login error: {str(e)}")
 
+
 async def auth_callback(request: Request):
     try:
         logger.debug("Auth callback hit")
@@ -133,53 +134,25 @@ async def auth_callback(request: Request):
         error = request.query_params.get('error')
         logger.debug(f"Received code: {code}, error: {error}")
 
-
         # URL 프래그먼트를 처리하기 위한 HTML 응답
         html_content = """
         <html>
         <body>
             <script>
-                function sendTokenToServer() {
+                function sendTokenToFrontend() {
                     var hash = window.location.hash.substring(1);
                     var params = new URLSearchParams(hash);
                     var access_token = params.get('access_token');
 
                     if (!access_token) {
-                        document.body.innerHTML = '<h1>Error: No access token found</h1>';
+                        window.location.href = 'https://localhost:3000/auth-error?error=no_token';
                         return;
                     }
 
-                    fetch('/process_token', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({access_token: access_token}),
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(err => {
-                                throw new Error(err.detail || 'Unknown error occurred');
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.message && data.user_id) {
-                            document.body.innerHTML = `<h1>${data.message}</h1><p>User ID: ${data.user_id}</p>`;
-                            setTimeout(() => {
-                                window.location.href = '/';
-                            }, 2000);  // Redirect back to the original page after 3 seconds
-                        } else {
-                            throw new Error('Invalid response data');
-                        }
-                    })
-                    .catch((error) => {
-                        console.error('Error:', error);
-                        document.body.innerHTML = '<h1>Error occurred during authentication</h1><p>' + error.message + '</p>';
-                    });
+                    // 프론트엔드로 토큰 전달
+                    window.location.href = 'https://localhost:3000/auth-success?token=' + access_token;
                 }
-                window.onload = sendTokenToServer;
+                window.onload = sendTokenToFrontend;
             </script>
             <h1>Processing authentication...</h1>
         </body>
@@ -189,6 +162,70 @@ async def auth_callback(request: Request):
     except Exception as e:
         logger.exception(f"Error in auth_callback: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Error processing authentication: {str(e)}")
+    
+# async def auth_callback(request: Request):
+#     try:
+#         logger.debug("Auth callback hit")
+#         code = request.query_params.get('code')
+#         error = request.query_params.get('error')
+#         logger.debug(f"Received code: {code}, error: {error}")
+
+
+#         # URL 프래그먼트를 처리하기 위한 HTML 응답
+#         html_content = """
+#         <html>
+#         <body>
+#             <script>
+#                 function sendTokenToServer() {
+#                     var hash = window.location.hash.substring(1);
+#                     var params = new URLSearchParams(hash);
+#                     var access_token = params.get('access_token');
+
+#                     if (!access_token) {
+#                         document.body.innerHTML = '<h1>Error: No access token found</h1>';
+#                         return;
+#                     }
+
+#                     fetch('/process_token', {
+#                         method: 'POST',
+#                         headers: {
+#                             'Content-Type': 'application/json',
+#                         },
+#                         body: JSON.stringify({access_token: access_token}),
+#                     })
+#                     .then(response => {
+#                         if (!response.ok) {
+#                             return response.json().then(err => {
+#                                 throw new Error(err.detail || 'Unknown error occurred');
+#                             });
+#                         }
+#                         return response.json();
+#                     })
+#                     .then(data => {
+#                         if (data.message && data.user_id) {
+#                             document.body.innerHTML = `<h1>${data.message}</h1><p>User ID: ${data.user_id}</p>`;
+#                             setTimeout(() => {
+#                                 window.location.href = '/';
+#                             }, 2000);  // Redirect back to the original page after 3 seconds
+#                         } else {
+#                             throw new Error('Invalid response data');
+#                         }
+#                     })
+#                     .catch((error) => {
+#                         console.error('Error:', error);
+#                         document.body.innerHTML = '<h1>Error occurred during authentication</h1><p>' + error.message + '</p>';
+#                     });
+#                 }
+#                 window.onload = sendTokenToServer;
+#             </script>
+#             <h1>Processing authentication...</h1>
+#         </body>
+#         </html>
+#         """
+#         return HTMLResponse(content=html_content)
+#     except Exception as e:
+#         logger.exception(f"Error in auth_callback: {str(e)}")
+#         raise HTTPException(status_code=400, detail=f"Error processing authentication: {str(e)}")
 
 
 async def process_token(token_data: dict):
