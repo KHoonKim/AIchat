@@ -1,1 +1,1 @@
-web: gunicorn --chdir /var/app/current/app --bind 0.0.0.0:8000 main:app -k uvicorn.workers.UvicornWorker
+web: gunicorn --chdir /var/app/current --bind 0.0.0.0:8000 "app:create_app()" -k uvicorn.workers.UvicornWorker
