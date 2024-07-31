@@ -1,1 +1,1 @@
-web: /var/app/venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app
+web: sh .platform/hooks/postdeploy/01_start_application.sh
