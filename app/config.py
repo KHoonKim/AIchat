@@ -1,12 +1,7 @@
-# config.py
-
 import os
-
 from redis import Redis
+from urllib.parse import urlparse
 
-# Redis 설정
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-
-redis_client = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+url = urlparse(redis_url)
+redis_client = Redis(host=url.hostname, port=url.port, password=url.password, decode_responses=True)

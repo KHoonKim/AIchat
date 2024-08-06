@@ -6,13 +6,14 @@ from typing import Dict, List
 
 import tiktoken
 from fastapi import APIRouter, HTTPException
-from langchain import LLMChain, PromptTemplate
-from langchain.chains.summarize import load_summarize_chain
-from langchain.chat_models import ChatOpenAI
-from langchain.docstore.document import Document
-from langchain.llms import OpenAI
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableSequence
+from langchain_openai import OpenAI, ChatOpenAI
+from langchain_core.documents import Document
 from langchain.memory import ConversationBufferWindowMemory
-from langchain.schema import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain.chains.summarize import load_summarize_chain
+from langchain.chains import LLMChain
 from supabase import Client, create_client
 
 from app.config import redis_client
@@ -25,6 +26,7 @@ from app.models.relationship import (UserCharacterInteractionCreate,
 from app.models.user import UserProfile as User
 from app.services.ai_service import AIService
 from app.services.relationship_service import RelationshipService
+
 
 router = APIRouter()
 

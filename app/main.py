@@ -16,27 +16,29 @@ from app.services.auth_service import router as auth_router
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 애플리케이션 시작 시 실행될 코드
+    logger.info("Application is starting up")
     try:
         redis_client.ping()
-        print("Successfully connected to Redis")
+        logger.info("Successfully connected to Redis")
     except Exception as e:
-        print(f"Failed to connect to Redis: {e}")
+        logger.error(f"Failed to connect to Redis: {e}")
+        logger.warning("Continuing without Redis connection")
     
-    yield  # FastAPI 애플리케이션 실행
+    yield
     
-    # 애플리케이션 종료 시 실행될 코드
-    redis_client.close()
-    print("Redis connection closed")
-
-
+    try:
+        redis_client.close()
+        logger.info("Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {e}")
+    logger.info("Application is shutting down")
 
 app = FastAPI(debug=True, lifespan=lifespan)
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,16 +48,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Supabase 클라이언트 초기화
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 if not supabase_url or not supabase_key:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env file")
+    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
 
 supabase: Client = create_client(supabase_url, supabase_key)
-
-# Supabase 클라이언트를 앱 상태로 추가
 app.state.supabase = supabase
 
 @app.middleware("http")
@@ -65,15 +63,11 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Response status code: {response.status_code}")
     return response
 
-# app.include_router(users_router, prefix="")  # prefix를 빈 문자열로 설정
-
-
 app.include_router(users_router)
 app.include_router(characters_router)
 app.include_router(conversations_router)
 # app.include_router(scenarios_router)
 app.include_router(auth_router, prefix="/auth")
-
 
 @app.get("/")
 async def root():
@@ -81,5 +75,7 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+
 
