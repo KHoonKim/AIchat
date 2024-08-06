@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Application is starting up")
-    from app.config import test_redis_connection
+    from app.config import test_redis_connection, redis_client
     
     if test_redis_connection():
         logger.info("Successfully connected to Redis")
@@ -33,11 +33,9 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    try:
+    if redis_client:
         redis_client.close()
         logger.info("Redis connection closed")
-    except Exception as e:
-        logger.error(f"Error closing Redis connection: {e}")
     logger.info("Application is shutting down")
 
 app = FastAPI(debug=True, lifespan=lifespan)
