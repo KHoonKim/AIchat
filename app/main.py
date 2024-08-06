@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
 
+import redis
+
 from app.config import redis_client
 from app.routes.characters import router as characters_router
 from app.routes.conversations import router as conversations_router
@@ -22,11 +24,11 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Application is starting up")
-    try:
-        redis_client.ping()
+    from app.config import test_redis_connection
+    
+    if test_redis_connection():
         logger.info("Successfully connected to Redis")
-    except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
+    else:
         logger.warning("Continuing without Redis connection")
     
     yield
