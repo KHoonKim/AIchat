@@ -1,0 +1,12 @@
+venv
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+.idea
+*.log
+data/
+tmp/
+.virtualenvs
+requirements-dev.txt

@@ -4,3 +4,8 @@
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+#가상환경
+venv
+__pycache__
+*.pyc
