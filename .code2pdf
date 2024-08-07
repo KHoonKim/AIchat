@@ -1,0 +1,13 @@
+:directories:
+  - .vscode
+  - static
+  - tests
+  - venv
+  - .venv
+  - .git
+:files:
+  - .env.example
+  - .gitignore
+  - README.md
+  - test_redis_connection.py
+  - test.html.code2pdf.yaml
