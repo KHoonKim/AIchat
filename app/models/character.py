@@ -1,9 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
-
 from pydantic import BaseModel, Field
-
 
 class LocalizedContent(BaseModel):
     ko: Optional[str] = Field(None, description="Korean content")
@@ -12,7 +10,6 @@ class LocalizedContent(BaseModel):
 
     class Config:
         extra = 'forbid'  # This prevents additional fields
-
 
 class LanguageProficiency(BaseModel):
     language_code: str
@@ -53,6 +50,8 @@ class CharacterBase(BaseModel):
     character_prompt: str
     response_generation_parameters: Dict[str, float]
     is_public: bool = False
+    image_urls: List[str] = Field(default_factory=list)
+    image_prompts: List[str] = Field(default_factory=list)
 
 class CharacterCreate(CharacterBase):
     pass
@@ -83,6 +82,8 @@ class CharacterUpdate(BaseModel):
     character_prompt: Optional[str] = None
     response_generation_parameters: Optional[Dict[str, float]] = None
     is_public: Optional[bool] = None
+    image_urls: Optional[List[str]] = None
+    image_prompts: Optional[List[str]] = None
 
 class CharacterInDB(CharacterBase):
     id: uuid.UUID

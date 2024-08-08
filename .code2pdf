@@ -1,7 +1,6 @@
 :directories:
   - .vscode
   - static
-  - tests
   - venv
   - .venv
   - .git
