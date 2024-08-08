@@ -296,13 +296,15 @@ async def get_user_profile(user: User = Depends(get_current_user)):
 async def update_user_profile(user_update, user):
     try:
         update_data = user_update.dict(exclude_unset=True)
-        user_data = supabase.table("users").update(update_data).eq("id", user.id).execute()
-        if user_data and user_data.get("data"):
-            return user_data["data"][0]
+        response: APIResponse = supabase.table("users").update(update_data).eq("id", user.id).execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
         else:
             raise HTTPException(status_code=404, detail="User profile not found")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 async def logout_user():
     try:

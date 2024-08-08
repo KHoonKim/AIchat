@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, logger
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -59,7 +59,14 @@ async def get_profile(user=Depends(get_current_user)):
 
 @router.put("/profile", response_model=UserProfile)
 async def update_profile(user_update: UserUpdate, user=Depends(get_current_user)):
-    return await update_user_profile(user_update, user)
+    try : 
+        return await update_user_profile(user_update, user)
+    except AttributeError as e:
+        logger.error(f"AttributeError in update_user_profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in update_user_profile: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 @router.post("/logout")
 async def logout(user=Depends(get_current_user)):
